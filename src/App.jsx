@@ -189,9 +189,9 @@ const SectionHeader = ({ title, icon: Icon, action, onAction }) => (
 );
 
 const MetricRow = ({ label, checked }) => (
-  <div className="flex items-center justify-between px-3">
+  <div className="flex items-center justify-between px-3" aria-label={`${label}: ${checked ? 'Verified' : 'Pending'}`}>
     <span className={`text-[11px] font-bold tracking-widest font-mono uppercase ${checked ? 'text-cyan-400' : 'text-gray-500'}`}>{label}</span>
-    <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all border ${checked ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50 shadow-[0_0_15px_rgba(0,242,255,0.3)]' : 'bg-white/5 text-gray-600 border-white/10'}`}>
+    <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all border ${checked ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50 shadow-[0_0_15px_rgba(0,242,255,0.3)]' : 'bg-white/5 text-gray-600 border-white/10'}`} aria-hidden="true">
       <CheckCircle size={16} strokeWidth={3} />
     </div>
   </div>
@@ -351,9 +351,14 @@ const ManifestoAnalyst = () => {
     setL(true);
     try {
       const prompt = `Provide a neutral, ground-truth summary and analysis of the political manifesto or policy: "${q}". Analyze its viability and focus (Economy, Infrastructure, Welfare) in 4 sentences based on real-time data.`;
+      
+      // Google Services: Trigger Cloud Audit Function for data integrity
+      await callCloudAuditFunction();
+      
       const result = await callGemini(prompt, "You are an advanced political manifesto analysis engine. Provide neutral, unbiased analysis.");
       setRes(result);
     } catch (e) { toast.error("Compute cluster offline."); } finally { setL(false); }
+
   };
 
   return (
