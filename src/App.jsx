@@ -161,10 +161,12 @@ const GlassCard = ({ children, className = "", onClick, noBlur = false, ariaLabe
   <motion.div
     role={onClick ? "button" : "region"}
     aria-label={ariaLabel}
+    tabIndex={onClick ? 0 : undefined}
+    onKeyDown={(e) => { if (onClick && (e.key === 'Enter' || e.key === ' ')) onClick(e); }}
     whileHover={{ y: -10, scale: 1.02 }}
     whileTap={onClick ? { scale: 0.98 } : {}}
     onClick={onClick}
-    className={`relative bg-[#0A0A1A]/60 ${noBlur ? '' : 'backdrop-blur-3xl'} border border-white/20 rounded-[2rem] shadow-[0_25px_50px_-12px_rgba(0,242,255,0.15)] p-8 ${className} ${onClick ? 'cursor-pointer' : ''} transition-shadow hover:shadow-[0_25px_50px_-12px_rgba(188,19,254,0.3)]`}
+    className={`relative bg-[#0A0A1A]/60 ${noBlur ? '' : 'backdrop-blur-3xl'} border border-white/20 rounded-[2rem] shadow-[0_25px_50px_-12px_rgba(0,242,255,0.15)] p-8 ${className} ${onClick ? 'cursor-pointer focus:outline-none focus:ring-2 focus:ring-cyan-500' : ''} transition-shadow hover:shadow-[0_25px_50px_-12px_rgba(188,19,254,0.3)]`}
   >
     {children}
   </motion.div>
@@ -647,6 +649,20 @@ const OnboardingSetup = ({ user, setUser, onComplete }) => {
 };
 
 const Dashboard = ({ user, setPage }) => {
+  // Security: Basic Access Control Validation
+  if (!user || !user.setupCompleted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-8 text-center bg-[#0A0A1A]">
+        <GlassCard className="max-w-md w-full border-l-[6px] border-l-red-500">
+          <Shield size={48} className="text-red-500 mx-auto mb-6" />
+          <h2 className="text-2xl font-black text-white font-mono mb-2 uppercase tracking-widest">Access Denied</h2>
+          <p className="text-gray-400 mb-8 font-mono text-sm leading-relaxed">Unauthorized access attempt. Identity not finalized or setup incomplete.</p>
+          <button onClick={() => setPage('landing')} className="w-full bg-red-500/20 text-red-400 border border-red-500/50 py-4 rounded-[1.5rem] font-mono text-[10px] tracking-widest hover:bg-red-500 hover:text-black transition-all font-black uppercase">Return to Gateway</button>
+        </GlassCard>
+      </div>
+    );
+  }
+
   const readiness = useMemo(() => {
     let score = 20;
     if (user.name) score += 30;
@@ -656,6 +672,7 @@ const Dashboard = ({ user, setPage }) => {
   }, [user]);
 
   return (
+
     <div className="min-h-screen bg-[#0A0A1A] pt-12 md:pt-16 pb-32 md:pb-60 px-4 md:px-8 max-w-7xl mx-auto relative">
       <div className="absolute top-0 left-0 w-full h-full bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 mix-blend-overlay pointer-events-none"></div>
 
@@ -872,17 +889,21 @@ export default function App() {
           <SectionHeader title="Identity Terminal" icon={User} />
           <GlassCard className="space-y-10 p-8 md:p-12">
             <div className="space-y-3">
-              <label className="text-[10px] font-black text-cyan-500 uppercase tracking-[0.4em] font-mono">Voter Designation</label>
-              <input className="w-full bg-black/50 p-6 rounded-[2rem] outline-none font-black text-2xl border border-white/10 focus:border-cyan-500/50 transition-all text-white font-mono" value={user.name} onChange={e => setUser({ ...user, name: e.target.value })} />
+              <label htmlFor="voter-name" className="text-[10px] font-black text-cyan-500 uppercase tracking-[0.4em] font-mono">Voter Designation</label>
+              <input id="voter-name" aria-label="Voter Designation" className="w-full bg-black/50 p-6 rounded-[2rem] outline-none font-black text-2xl border border-white/10 focus:border-cyan-500/50 transition-all text-white font-mono" value={user.name} onChange={e => setUser({ ...user, name: e.target.value.replace(/[<>]/g, "") })} placeholder="Enter your full name" />
             </div>
             <div className="space-y-3">
-              <label className="text-[10px] font-black text-purple-500 uppercase tracking-[0.4em] font-mono">National Base</label>
-              <input className="w-full bg-black/50 p-6 rounded-[2rem] outline-none font-black text-2xl border border-white/10 focus:border-purple-500/50 transition-all text-white font-mono" value={user.country} onChange={e => setUser({ ...user, country: e.target.value })} />
+              <label htmlFor="voter-country" className="text-[10px] font-black text-purple-500 uppercase tracking-[0.4em] font-mono">National Base</label>
+              <input id="voter-country" aria-label="National Base" className="w-full bg-black/50 p-6 rounded-[2rem] outline-none font-black text-2xl border border-white/10 focus:border-purple-500/50 transition-all text-white font-mono" value={user.country} onChange={e => setUser({ ...user, country: e.target.value.replace(/[<>]/g, "") })} placeholder="Your Country (e.g. India)" />
             </div>
-            <button onClick={() => {
-              toast.success("Identity Finalized", { icon: '🏛️', style: { background: '#0A0A1A', color: '#00F2FF', border: '1px solid #00F2FF' } });
+            <button aria-label="Sync State and Finalize Identity" onClick={() => {
+              if (user.name.length < 2) {
+                toast.error("Invalid Voter Designation.");
+                return;
+              }
+              toast.success("Identity Finalized & Secured", { icon: '🛡️', style: { background: '#0A0A1A', color: '#00F2FF', border: '1px solid #00F2FF' } });
               setPage('dashboard');
-            }} className="w-full bg-white/10 text-white py-6 rounded-[2rem] font-black text-xs tracking-[0.4em] shadow-2xl hover:bg-cyan-500 hover:text-black hover:border-cyan-400 transition-all font-mono border border-white/20">SYNC STATE</button>
+            }} className="w-full bg-white/10 text-white py-6 rounded-[2rem] font-black text-xs tracking-[0.4em] shadow-2xl hover:bg-cyan-500 hover:text-black hover:border-cyan-400 transition-all font-mono border border-white/20 focus:outline-none focus:ring-2 focus:ring-cyan-500">SYNC STATE</button>
           </GlassCard>
         </div>
       );
