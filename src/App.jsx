@@ -21,7 +21,7 @@ const COLORS = {
   muted: "#8A94A6",
 };
 
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "AIzaSyDrVk-WcKGAM-dYKHEbjkxvqtEZTONuHhg";
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "AIzaSyA8qxQGK4p8u9A__WVmcBKPjoIDRPVmKCY";
 
 // Security: Prevent frame-jacking and basic CSP
 const CSP_META = <meta httpEquiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://generativelanguage.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://generativelanguage.googleapis.com https://*.googleapis.com;" />;
@@ -51,13 +51,22 @@ const callGemini = async (prompt, systemInstruction) => {
     const configs = [
       { ver: 'v1beta', mod: 'gemini-2.0-flash-lite' },
       { ver: 'v1beta', mod: 'gemini-flash-lite-latest' },
-      { ver: 'v1beta', mod: 'gemini-2.0-flash' }
+      { ver: 'v1beta', mod: 'gemini-2.0-flash' },
+      { ver: 'v1beta', mod: 'gemini-1.5-flash-latest' },
+      { ver: 'v1beta', mod: 'gemini-1.5-pro-latest' },
+      { ver: 'v1beta', mod: 'gemini-1.5-flash' },
+      { ver: 'v1beta', mod: 'gemini-1.5-pro' },
+      { ver: 'v1beta', mod: 'gemini-pro-latest' },
+      { ver: 'v1', mod: 'gemini-1.0-pro' },
+      { ver: 'v1', mod: 'gemini-pro' }
     ];
 
 
 
 
     let lastError = 'No models responded';
+    let hitRateLimit = false;
+
     for (const config of configs) {
       try {
         const response = await fetch(`https://generativelanguage.googleapis.com/${config.ver}/models/${config.mod}:generateContent?key=${apiKey}`, {
@@ -73,16 +82,24 @@ const callGemini = async (prompt, systemInstruction) => {
         const errData = await response.json().catch(() => ({}));
         lastError = `[${config.mod}/${config.ver}] ${errData.error?.message || response.status}`;
         
-        if (response.status === 429) throw new Error('Rate limit hit');
-      } catch (error) {
-        if (error.message === 'Rate limit hit' && retries > 0) {
-          await new Promise(res => setTimeout(res, delay));
-          return fetchWithRetry(retries - 1, delay * 2);
+        if (response.status === 429) {
+          hitRateLimit = true;
+          console.warn(`${config.mod} quota exceeded, trying next...`);
+          continue; // Try next model immediately
         }
+      } catch (error) {
         console.warn(`${config.mod} failed: ${error.message}`);
       }
     }
+
+    if (hitRateLimit && retries > 0) {
+      console.log(`All models rate-limited. Retrying in ${delay}ms...`);
+      await new Promise(res => setTimeout(res, delay));
+      return fetchWithRetry(retries - 1, delay * 2);
+    }
+
     throw new Error(lastError);
+
   };
 
   const listAvailableModels = async () => {
