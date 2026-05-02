@@ -409,8 +409,19 @@ const ElectionAssistant = () => {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Security: Input Validation Schema
+  const validateInput = (str) => {
+    if (!str || str.length > 500) return false;
+    return !/[<>]/.test(str);
+  };
+
   const ask = async () => {
     if (!input) return;
+    if (!validateInput(input)) {
+      toast.error("Invalid characters detected. Protocol breach averted.");
+      return;
+    }
+
     const userMsg = { role: 'user', text: input };
     setChat([...chat, userMsg]);
     setInput('');
@@ -437,8 +448,9 @@ const ElectionAssistant = () => {
             </div>
           )}
           {chat.map((m, i) => (
-            <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`} aria-live={m.role === 'assistant' ? 'polite' : 'off'}>
               <div className={`max-w-[85%] p-5 rounded-[1.5rem] font-mono text-sm leading-relaxed shadow-2xl ${m.role === 'user' ? 'bg-cyan-500/10 text-cyan-200 border border-cyan-500/30' : 'bg-black/60 text-gray-300 border border-white/10 backdrop-blur-md'}`}>
+
                 <span className="text-[9px] block mb-2 opacity-50 uppercase tracking-widest">{m.role === 'user' ? 'Voter-Command' : 'Electoral-Node'}</span>
                 {m.text}
               </div>
@@ -935,9 +947,14 @@ export default function App() {
 
   return (
     <div className="font-sans selection:bg-cyan-500/30 bg-[#0A0A1A] min-h-screen overflow-x-hidden text-gray-200">
+      {/* Accessibility: Skip Link */}
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[100] focus:bg-cyan-500 focus:text-black focus:px-6 focus:py-3 focus:rounded-xl focus:font-black focus:font-mono">
+        SKIP TO MAIN CONTENT
+      </a>
+
       <Toaster position="bottom-center" />
       <AnimatePresence mode="wait">
-        <motion.div key={page} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
+        <motion.div id="main-content" key={page} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
           {renderContent()}
         </motion.div>
       </AnimatePresence>
