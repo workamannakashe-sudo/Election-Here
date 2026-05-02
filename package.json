@@ -8,8 +8,11 @@
     "build": "vite build",
     "preview": "vite preview",
     "start": "serve -s dist -l $PORT",
-    "test": "vitest run"
+    "test": "vitest run",
+    "lint": "eslint src --ext .jsx --fix",
+    "security-audit": "npm audit"
   },
+
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
     "@tailwindcss/vite": "^4.0.8",
@@ -26,6 +29,9 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
+    "eslint": "^8.57.0",
+    "eslint-plugin-jsx-a11y": "^6.8.0",
+    "eslint-plugin-react": "^7.34.1",
     "vite": "^6.2.0",
     "vitest": "^1.6.1"
   }
