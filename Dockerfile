@@ -4,7 +4,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 COPY . .
-RUN echo "VITE_GEMINI_API_KEY=AIzaSyA8qxQGK4p8u9A__WVmcBKPjoIDRPVmKCY" > .env
+RUN echo "VITE_GEMINI_API_KEY=AIzaSyBUJ80hBqeFQMdwbc5jLSdr4WjVlVlm8Cw" > .env
 RUN npm run build
 
 
