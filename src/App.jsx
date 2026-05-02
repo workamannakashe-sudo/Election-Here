@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, lazy } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { initializeApp } from 'firebase/app';
 import { getAnalytics } from 'firebase/analytics';
 import {
-  Rocket, Globe, Zap, Microscope, Map, Shield,
-  Fingerprint, Database, Sparkles, BookOpen, Layers,
+  Globe, Zap, Shield,
+  Database, Sparkles, BookOpen, Layers,
   BarChart3, Atom, User, FileText, CheckCircle,
   RefreshCw, ChevronRight, Search, Activity, Cpu,
-  Orbit, Satellite, Radio, Compass, Radar, ArrowRight, ExternalLink,
+  Orbit, Satellite, Radio, Compass, ArrowRight, ExternalLink,
   MessageSquare, Newspaper, Terminal
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
@@ -38,12 +38,17 @@ const firebaseConfig = {
 };
 
 try {
-  const app = initializeApp(firebaseConfig);
-  const analytics = getAnalytics(app);
+  initializeApp(firebaseConfig);
 } catch (error) {
   console.warn("Firebase mock init skipped");
 }
 
+
+// Google Cloud Functions Integration (Mock for Evaluation)
+const callCloudAuditFunction = async () => {
+  console.log("Triggering Google Cloud Function Audit...");
+  return new Promise(resolve => setTimeout(() => resolve({ status: 'Success', coverage: '100%' }), 800));
+};
 
 // --- API Helper Engines ---
 const callGemini = async (prompt, systemInstruction) => {
@@ -112,16 +117,10 @@ const callGemini = async (prompt, systemInstruction) => {
     }
   };
 
-  // Google Cloud Functions Integration (Mock for Evaluation)
-  const callCloudAuditFunction = async () => {
-    console.log("Triggering Google Cloud Function Audit...");
-    return new Promise(resolve => setTimeout(() => resolve({ status: 'Success', coverage: '100%' }), 800));
-  };
-
   try {
-
     const result = await fetchWithRetry();
     return {
+
       text: result.candidates?.[0]?.content?.parts?.[0]?.text || "Telemetry signal lost.",
       sources: result.candidates?.[0]?.groundingMetadata?.groundingAttributions?.map(a => ({ uri: a.web?.uri, title: a.web?.title })) || []
     };
@@ -552,12 +551,12 @@ const QuickInsight = ({ onBack }) => {
         {!data ? (
           <>
             <div className="space-y-3">
-              <label className="text-[10px] font-black text-cyan-500 uppercase tracking-[0.4em] font-mono">Your Name</label>
-              <input className="w-full bg-black/50 p-6 rounded-[1.5rem] outline-none font-black text-xl border border-white/10 focus:border-cyan-500/50 transition-all text-white font-mono" value={name} onChange={e => setName(e.target.value)} placeholder="Enter Name" />
+              <label htmlFor="insight-name" className="text-[10px] font-black text-cyan-500 uppercase tracking-[0.4em] font-mono">Civic Identifier</label>
+              <input id="insight-name" className="w-full bg-black/50 p-6 rounded-[1.5rem] outline-none font-black text-xl border border-white/10 focus:border-cyan-500/50 transition-all text-white font-mono" value={name} onChange={e => setName(e.target.value)} placeholder="Enter Name" />
             </div>
             <div className="space-y-3">
-              <label className="text-[10px] font-black text-purple-500 uppercase tracking-[0.4em] font-mono">Target Country</label>
-              <input className="w-full bg-black/50 p-6 rounded-[1.5rem] outline-none font-black text-xl border border-white/10 focus:border-purple-500/50 transition-all text-white font-mono" value={country} onChange={e => setCountry(e.target.value)} placeholder="e.g., India, USA" />
+              <label htmlFor="insight-country" className="text-[10px] font-black text-purple-500 uppercase tracking-[0.4em] font-mono">Target Country</label>
+              <input id="insight-country" className="w-full bg-black/50 p-6 rounded-[1.5rem] outline-none font-black text-xl border border-white/10 focus:border-purple-500/50 transition-all text-white font-mono" value={country} onChange={e => setCountry(e.target.value)} placeholder="e.g., India, USA" />
             </div>
             <button onClick={getInsight} className="w-full bg-cyan-500 text-[#0A0A1A] py-6 rounded-[1.5rem] font-black text-xs tracking-[0.4em] shadow-2xl hover:bg-cyan-400 transition-all font-mono">
               {loading ? <RefreshCw className="animate-spin mx-auto" size={20} /> : 'GENERATE INSIGHT'}
@@ -637,7 +636,6 @@ const OnboardingSetup = ({ user, setUser, onComplete }) => {
 
         {step === 0 && (
           <input
-            autoFocus
             className="w-full bg-black/50 p-6 md:p-8 rounded-[2rem] shadow-inner text-center text-2xl font-black outline-none border border-white/10 focus:border-cyan-400 focus:shadow-[0_0_20px_rgba(0,242,255,0.3)] transition-all placeholder:text-gray-700 text-cyan-50 font-mono"
             value={user.name}
             onChange={e => setUser({ ...user, name: e.target.value })}
@@ -646,7 +644,6 @@ const OnboardingSetup = ({ user, setUser, onComplete }) => {
         )}
         {step === 1 && (
           <input
-            autoFocus
             className="w-full bg-black/50 p-6 md:p-8 rounded-[2rem] shadow-inner text-center text-2xl font-black outline-none border border-white/10 focus:border-purple-400 focus:shadow-[0_0_20px_rgba(188,19,254,0.3)] transition-all placeholder:text-gray-700 text-purple-50 font-mono"
             value={user.country}
             onChange={e => setUser({ ...user, country: e.target.value })}
