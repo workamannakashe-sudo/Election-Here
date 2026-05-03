@@ -21,6 +21,7 @@ const getActiveKey = () => {
 
 // Secondary fallback keys from past stable sessions
 const FALLBACK_KEYS = [
+  "AIzaSyD-xd4QCzW50Mz1Np-wHsa5C5g7X8LFgJA",
   "AIzaSyAuc3ZuFtzih4T9f324n7CCXASmNsJQPpg",
   "AIzaSyBUJ80hBqeFQMdwbc5jLSdr4WjVlVlm8Cw",
   "AIzaSyA8qxQGK4p8u9A__WVmcBKPjoIDRPVmKCY"
@@ -44,19 +45,20 @@ export const callGemini = async (prompt, systemInstruction) => {
   const fallbackKey = Object.keys(CIVIC_KNOWLEDGE_BASE).find(k => query.includes(k));
   
   const primaryKey = getActiveKey();
-  const keysToTry = [primaryKey, ...FALLBACK_KEYS].filter(Boolean);
+  // Deduplicate keys while maintaining order
+  const keysToTry = Array.from(new Set([primaryKey, ...FALLBACK_KEYS])).filter(Boolean);
 
   const configs = [
+    { ver: 'v1beta', mod: 'gemini-2.0-flash' },
     { ver: 'v1beta', mod: 'gemini-2.5-flash-lite' },
     { ver: 'v1beta', mod: 'gemini-2.0-flash-lite' },
-    { ver: 'v1beta', mod: 'gemini-2.0-flash' },
     { ver: 'v1beta', mod: 'gemini-1.5-flash' },
     { ver: 'v1beta', mod: 'gemini-1.5-pro' }
   ];
 
-  const fetchWithRetry = async (keyIndex = 0, retries = 2, delay = 2000) => {
+  const fetchWithRetry = async (keyIndex = 0, retries = 1, delay = 2000) => {
     if (keyIndex >= keysToTry.length) {
-      throw new Error("All available API keys have expired or reached quota limits.");
+      throw new Error("ELECTION-HERE: All intelligence nodes are currently saturated. Please renew the API key or wait for the quota reset.");
     }
 
     const currentKey = keysToTry[keyIndex];

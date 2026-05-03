@@ -31,7 +31,7 @@ Election-Here is a state-of-the-art, premium civic intelligence platform designe
 
 - **Frontend**: React 19, Vite 6, Tailwind CSS 4
 - **Animation**: Framer Motion 12
-- **Intelligence**: Google Gemini AI (Flash 2.5-Lite / 2.0-Flash)
+- **Intelligence**: Google Gemini AI (Flash 2.0 / 2.5-Lite)
 - **Infrastructure**: Firebase Hosting, Firestore, Cloud Functions, BigQuery
 - **Icons**: Lucide React
 
