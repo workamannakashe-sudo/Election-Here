@@ -80,6 +80,19 @@ export default function App() {
     };
   });
 
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   useEffect(() => {
     localStorage.setItem('aether_gravity_user', JSON.stringify(user));
     window.scrollTo(0, 0);
@@ -88,6 +101,12 @@ export default function App() {
     window.addEventListener('setPage', handleSetPage);
     return () => window.removeEventListener('setPage', handleSetPage);
   }, [user, page]);
+
+  const OfflineBanner = () => (
+    <div className="fixed top-0 left-0 w-full bg-red-600 text-white text-center py-2 z-50">
+      ⚠️ You are offline – data may be limited to local knowledge.
+    </div>
+  );
 
   const renderContent = () => {
     if (page === 'landing') return <Landing onStart={() => setPage(user.setupCompleted ? 'dashboard' : 'setup')} />;
@@ -169,6 +188,7 @@ export default function App() {
 
   return (
     <div className="font-sans selection:bg-cyan-500/30 bg-[#0A0A1A] min-h-screen overflow-x-hidden text-gray-200">
+      {isOffline && <OfflineBanner />}
       {/* Accessibility: Skip Link */}
       <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[100] focus:bg-cyan-500 focus:text-black focus:px-6 focus:py-3 focus:rounded-xl focus:font-black focus:font-mono">
         SKIP TO MAIN CONTENT

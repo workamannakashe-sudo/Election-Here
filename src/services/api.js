@@ -93,9 +93,14 @@ export const callGemini = async (prompt, systemInstruction) => {
         const errStatus = response.status;
         const errMsg = errData.error?.message || `HTTP ${errStatus}`;
 
-        // If Key is expired or invalid, try next key immediately
-        if (errStatus === 400 && (errMsg.includes("expired") || errMsg.includes("not valid") || errMsg.includes("API_KEY_INVALID"))) {
-          console.warn(`Key ${keyIndex} failed: ${errMsg}. Trying next key...`);
+        // If Key is expired, invalid, or forbidden, try next key immediately
+        if ((errStatus === 400 || errStatus === 401 || errStatus === 403) && 
+            (errMsg.includes("expired") || errMsg.includes("not valid") || errMsg.includes("API_KEY_INVALID") || errMsg.includes("permission"))) {
+          console.warn(`Key ${keyIndex} failed: ${errMsg}. Purging and trying next key...`);
+          // If this was a dynamic key, clear it to prevent sticky errors
+          if (currentKey === localStorage.getItem('ELECTION_HERE_DYNAMIC_KEY')) {
+            localStorage.removeItem('ELECTION_HERE_DYNAMIC_KEY');
+          }
           return fetchWithRetry(keyIndex + 1, retries, delay);
         }
         
@@ -103,15 +108,19 @@ export const callGemini = async (prompt, systemInstruction) => {
           const match = errMsg.match(/retry in ([\d\.]+)s/i);
           if (match) retryAfter = Math.max(retryAfter, parseFloat(match[1]));
           hitRateLimit = true;
-          // On rate limit, we can also try next key
-          console.warn(`Key ${keyIndex} rate limited. Trying next key...`);
+          // On rate limit, try next key immediately to maintain service
+          console.warn(`Key ${keyIndex} rate limited. Swapping nodes...`);
           return fetchWithRetry(keyIndex + 1, retries, delay);
         }
         
         throw new Error(errMsg);
       } catch (error) {
         lastError = error.message;
-        console.warn(`Model ${config.mod} failed with key ${keyIndex}: ${lastError}`);
+        console.warn(`Model ${config.mod} failed with key ${keyIndex}: ${lastError}. Attempting failover...`);
+        // If the entire model fetch fails (network/CORS/etc), also consider trying next key
+        if (lastError.includes("Failed to fetch") || lastError.includes("NetworkError")) {
+          return fetchWithRetry(keyIndex + 1, retries, delay);
+        }
       }
     }
 
@@ -133,13 +142,12 @@ export const callGemini = async (prompt, systemInstruction) => {
     };
   } catch (error) {
     console.error("Gemini API Error:", error.message);
-    if (fallbackKey) {
-      return {
-        text: `🏛️ **ELECTION-HERE (Local Insight)**\n\n${CIVIC_KNOWLEDGE_BASE[fallbackKey]}\n\n*(Note: Displaying offline data due to system load)*`,
-        sources: []
-      };
-    }
-    throw error;
+    const fallbackData = CIVIC_KNOWLEDGE_BASE[fallbackKey] || "Our central intelligence nodes are currently undergoing maintenance. Please refer to your local Election Commission's official portal for the latest verified electoral data.";
+    
+    return {
+      text: `🏛️ **ELECTION-HERE (Intelligence Relay)**\n\n${fallbackData}\n\n*(Note: Displaying offline/cached intelligence due to system load)*`,
+      sources: []
+    };
   }
 };
 
