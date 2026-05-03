@@ -1,4 +1,4 @@
-import toast from 'react-hot-toast';
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const CIVIC_KNOWLEDGE_BASE = {
   "how to vote": "To vote in India, you must be a registered voter. On election day, go to your designated polling booth with a valid ID (like EPIC card). Your identity will be verified, ink applied, and then you can cast your vote on the EVM.",
@@ -19,133 +19,97 @@ const getActiveKey = () => {
   return localStorage.getItem('ELECTION_HERE_DYNAMIC_KEY') || import.meta.env.VITE_GEMINI_API_KEY;
 };
 
-// Secondary fallback keys from past stable sessions
 const FALLBACK_KEYS = [
-  "AIzaSyD-xd4QCzW50Mz1Np-wHsa5C5g7X8LFgJA",
-  "AIzaSyAuc3ZuFtzih4T9f324n7CCXASmNsJQPpg",
-  "AIzaSyBUJ80hBqeFQMdwbc5jLSdr4WjVlVlm8Cw",
-  "AIzaSyA8qxQGK4p8u9A__WVmcBKPjoIDRPVmKCY"
+  "AIzaSyAPib7ZyoQ0wXOG5YJA92lCOCamWXJf7bc",
+  "AIzaSyCip_Y2Z4q4VVozw1LWcOOBIfO-s_f48yE",
+  "AIzaSyD69PEYqcMCYKz-kOUKNDYdrFX4x3UNoNk",
+  "AIzaSyDsA7xN9T3sVDwRG83LvvK4dOcbMZogOIA"
 ];
 
-// Rate Limiting: 15 Requests Per Minute (RPM) = 1 request every 4000ms
 let lastRequestTime = 0;
 const RPM_LIMIT_MS = 4000;
+let lastErrorMessage = "No diagnostic data available.";
 
 export const callGemini = async (prompt, systemInstruction) => {
-  // Throttling for Free Tier (15 RPM)
   const now = Date.now();
-  const timeSinceLast = now - lastRequestTime;
-  if (timeSinceLast < RPM_LIMIT_MS) {
-    const waitTime = RPM_LIMIT_MS - timeSinceLast;
-    await new Promise(resolve => setTimeout(resolve, waitTime));
+  if (now - lastRequestTime < RPM_LIMIT_MS) {
+    await new Promise(res => setTimeout(res, RPM_LIMIT_MS - (now - lastRequestTime)));
   }
   lastRequestTime = Date.now();
 
   const query = prompt.toLowerCase();
-  const fallbackKey = Object.keys(CIVIC_KNOWLEDGE_BASE).find(k => query.includes(k));
-  
-  const primaryKey = getActiveKey();
-  // Deduplicate keys while maintaining order
-  const keysToTry = Array.from(new Set([primaryKey, ...FALLBACK_KEYS])).filter(Boolean);
+  const fallbackKey = Object.keys(CIVIC_KNOWLEDGE_BASE).find(k => query.includes(k.split(' ')[0]));
+  const keysToTry = Array.from(new Set([getActiveKey(), ...FALLBACK_KEYS])).filter(Boolean);
 
-  const configs = [
-    { ver: 'v1beta', mod: 'gemini-2.0-flash' },
-    { ver: 'v1beta', mod: 'gemini-2.5-flash-lite' },
-    { ver: 'v1beta', mod: 'gemini-2.0-flash-lite' },
+  const modelsToTry = [
+    { ver: 'v1', mod: 'gemini-1.5-flash' },
     { ver: 'v1beta', mod: 'gemini-1.5-flash' },
-    { ver: 'v1beta', mod: 'gemini-1.5-pro' }
+    { ver: 'v1', mod: 'gemini-pro' }
   ];
 
-  const fetchWithRetry = async (keyIndex = 0, retries = 1, delay = 2000) => {
+  const fetchWithRetry = async (keyIndex = 0, modelIndex = 0) => {
     if (keyIndex >= keysToTry.length) {
-      throw new Error("ELECTION-HERE: All intelligence nodes are currently saturated. Please renew the API key or wait for the quota reset.");
+      throw new Error(lastErrorMessage);
     }
 
     const currentKey = keysToTry[keyIndex];
-    let lastError = 'No models responded';
-    let hitRateLimit = false;
-    let retryAfter = 0;
 
-    for (let i = 0; i < configs.length; i++) {
-      const config = configs[i];
+    // Discovery Phase: If standard models fail, ask Google what models are allowed
+    if (modelIndex >= modelsToTry.length) {
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 12000); 
-
-        const response = await fetch(`https://generativelanguage.googleapis.com/${config.ver}/models/${config.mod}:generateContent?key=${currentKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: controller.signal,
-          body: JSON.stringify({
-            contents: [{ role: 'user', parts: [{ text: `System Instruction: ${systemInstruction}\n\nUser Query: ${prompt}` }] }],
-            generationConfig: {
-              maxOutputTokens: 2048,
-              temperature: 0.7,
-            }
-          })
-        });
-
-        clearTimeout(timeoutId);
-        
-        if (response.ok) return await response.json();
-        
-        const errData = await response.json().catch(() => ({}));
-        const errStatus = response.status;
-        const errMsg = errData.error?.message || `HTTP ${errStatus}`;
-
-        // If Key is expired, invalid, or forbidden, try next key immediately
-        if ((errStatus === 400 || errStatus === 401 || errStatus === 403) && 
-            (errMsg.includes("expired") || errMsg.includes("not valid") || errMsg.includes("API_KEY_INVALID") || errMsg.includes("permission"))) {
-          console.warn(`Key ${keyIndex} failed: ${errMsg}. Purging and trying next key...`);
-          // If this was a dynamic key, clear it to prevent sticky errors
-          if (currentKey === localStorage.getItem('ELECTION_HERE_DYNAMIC_KEY')) {
-            localStorage.removeItem('ELECTION_HERE_DYNAMIC_KEY');
+        const listRes = await fetch(`https://generativelanguage.googleapis.com/v1/models?key=${currentKey}`);
+        const listData = await listRes.json();
+        const available = listData.models?.map(m => m.name.split('/').pop()) || [];
+        if (available.length > 0) {
+          lastErrorMessage = `Discovered models: ${available.join(', ')}. Attempting ${available[0]}...`;
+          // Try the first discovered model that supports generateContent
+          const bestModel = listData.models.find(m => m.supportedGenerationMethods.includes('generateContent'))?.name.split('/').pop();
+          if (bestModel) {
+            modelsToTry.push({ ver: 'v1', mod: bestModel });
+            return fetchWithRetry(keyIndex, modelsToTry.length - 1);
           }
-          return fetchWithRetry(keyIndex + 1, retries, delay);
         }
-        
-        if (errStatus === 429) {
-          const match = errMsg.match(/retry in ([\d\.]+)s/i);
-          if (match) retryAfter = Math.max(retryAfter, parseFloat(match[1]));
-          hitRateLimit = true;
-          // On rate limit, try next key immediately to maintain service
-          console.warn(`Key ${keyIndex} rate limited. Swapping nodes...`);
-          return fetchWithRetry(keyIndex + 1, retries, delay);
-        }
-        
-        throw new Error(errMsg);
-      } catch (error) {
-        lastError = error.message;
-        console.warn(`Model ${config.mod} failed with key ${keyIndex}: ${lastError}. Attempting failover...`);
-        // If the entire model fetch fails (network/CORS/etc), also consider trying next key
-        if (lastError.includes("Failed to fetch") || lastError.includes("NetworkError")) {
-          return fetchWithRetry(keyIndex + 1, retries, delay);
-        }
+      } catch (e) {
+        console.error("Discovery failed", e);
       }
+      return fetchWithRetry(keyIndex + 1, 0);
     }
 
-    if (hitRateLimit && retries > 0) {
-      const waitTime = Math.max(delay * 2, (retryAfter * 1000) || 0);
-      await new Promise(res => setTimeout(res, waitTime));
-      return fetchWithRetry(keyIndex, retries - 1, waitTime);
-    }
+    const config = modelsToTry[modelIndex];
+    
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/${config.ver}/models/${config.mod}:generateContent?key=${currentKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: `${systemInstruction}\n\n${prompt}` }] }]
+        })
+      });
 
-    // If all models failed for this key, try next key
-    return fetchWithRetry(keyIndex + 1, retries, delay);
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        const msg = err.error?.message || `HTTP ${response.status}`;
+        lastErrorMessage = `Node ${keyIndex} (${config.mod}): ${msg}`;
+        return fetchWithRetry(keyIndex, modelIndex + 1);
+      }
+
+      const result = await response.json();
+      return {
+        text: result.candidates?.[0]?.content?.parts?.[0]?.text || "Signal lost.",
+        sources: []
+      };
+    } catch (error) {
+      lastErrorMessage = error.message;
+      return fetchWithRetry(keyIndex, modelIndex + 1);
+    }
   };
 
   try {
-    const result = await fetchWithRetry();
-    return {
-      text: result.candidates?.[0]?.content?.parts?.[0]?.text || "Telemetry signal lost.",
-      sources: result.candidates?.[0]?.groundingMetadata?.groundingAttributions?.map(a => ({ uri: a.web?.uri, title: a.web?.title })) || []
-    };
+    return await fetchWithRetry();
   } catch (error) {
-    console.error("Gemini API Error:", error.message);
-    const fallbackData = CIVIC_KNOWLEDGE_BASE[fallbackKey] || "Our central intelligence nodes are currently undergoing maintenance. Please refer to your local Election Commission's official portal for the latest verified electoral data.";
-    
+    const fallbackData = CIVIC_KNOWLEDGE_BASE[fallbackKey] || "Our central intelligence nodes are undergoing maintenance. Please consult official portals.";
     return {
-      text: `🏛️ **ELECTION-HERE (Intelligence Relay)**\n\n${fallbackData}\n\n*(Note: Displaying offline/cached intelligence due to system load)*`,
+      text: `🏛️ **ELECTION-HERE (Intelligence Relay)**\n\n${fallbackData}\n\n*(Diagnostic Note: ${lastErrorMessage})*`,
       sources: []
     };
   }

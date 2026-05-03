@@ -16,7 +16,7 @@ const NationalBrief = ({ user }) => {
         const res = await callGemini(prompt, system);
         setData(res);
       } catch (e) {
-        setData({ text: "Connection offline. Cannot sync with electoral database." });
+        setData({ text: `⚠️ **Intelligence Relay Error**\n\n${e.message || "Unknown error occurred during electoral sync."}` });
       } finally {
         setLoading(false);
       }

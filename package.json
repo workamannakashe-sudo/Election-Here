@@ -12,15 +12,15 @@
     "lint": "eslint src --ext .jsx --fix",
     "security-audit": "npm audit"
   },
-
   "dependencies": {
-    "@google/generative-ai": "^0.21.0",
+    "@google/generative-ai": "^0.24.1",
     "@tailwindcss/vite": "^4.0.8",
     "canvas-confetti": "^1.9.3",
     "dotenv": "^17.4.2",
     "firebase": "^11.3.1",
     "framer-motion": "^12.4.7",
     "lucide-react": "^0.475.0",
+    "node-fetch": "^2.7.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-hot-toast": "^2.6.0",
